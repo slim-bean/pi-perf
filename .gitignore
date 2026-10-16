@@ -1,0 +1,8 @@
+node_modules/
+*.cpuprofile
+*.heapprofile
+*.heapsnapshot
+*.jsonl
+.env*
+*.tgz
+coverage/
