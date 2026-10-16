@@ -13,7 +13,7 @@ npm rebuild @datadog/pprof
 pi install .
 ```
 
-This registers your local checkout in Pi\u0027s personal settings. Run `/reload`
+This registers your local checkout in Pi's personal settings. Run `/reload`
 in an already-running session. Requires Node 22.19+.
 Full smoke tests run against Pi 1.3.0; local collection is also verified in
 Pi 1.2.0. Native profiling was tested on macOS ARM64 with Node 26.3. Other
@@ -149,7 +149,129 @@ drop records instead of queuing. The extension retains only the latest sample
 in memory. Logs from exited processes are preserved: periodically remove old
 recordings yourself. Total disk use across all past processes is not capped.
 
-## Prometheus / Alloy
+## Local Alloy setup
+
+Recommended topology: **Pi → local Alloy → Grafana Cloud Profiles**. Alloy owns
+Cloud credentials; Pi only needs the local receiver address. Profiles and metrics
+use separate Alloy components and ports.
+
+### 1. Configure Alloy to receive and forward profiles
+
+Add this to your Alloy configuration, replacing the endpoint and username with
+values from your stack's **Pyroscope / Profiles** connection details:
+
+```alloy
+pyroscope.receive_http "pi" {
+  http {
+    listen_address = "127.0.0.1"
+    listen_port    = 9999
+  }
+  forward_to = [pyroscope.write.cloud.receiver]
+}
+
+pyroscope.write "cloud" {
+  endpoint {
+    url = "https://YOUR-PYROSCOPE-ENDPOINT"
+
+    basic_auth {
+      username = "YOUR-PROFILES-USER"
+      password = sys.env("GRAFANA_CLOUD_PROFILES_TOKEN")
+    }
+  }
+}
+```
+
+Use the base Pyroscope URL, without `/ingest`. The token must authorize
+`profiles:write` for that stack. If you already have a profile writer, reuse it
+in `forward_to` rather than defining a second `pyroscope.write "cloud"`.
+
+**`sys.env` takes an environment-variable name, not a literal value.** Use
+`url = "https://..."` and `username = "12345"` for literals—not
+`sys.env("https://...")` or `sys.env("12345")`, which normally return empty
+strings. An empty URL causes `unsupported protocol scheme ""` on forwarding.
+
+`GRAFANA_CLOUD_PROFILES_TOKEN` must be available to the **Alloy process**.
+A background service started by launchd/systemd does not automatically inherit
+your `.zshrc`/`.bashrc` exports. Provision its secret through your service manager
+or secret-management setup. Alternatively, replace the `password` line with:
+
+```alloy
+password_file = "/absolute/path/to/profiles-write-token"
+```
+
+Use one of `password` or `password_file`, not both. Keep the token file outside
+the repository, restrict it to mode `0600`, and make it readable by the Alloy
+service user. Do not put Cloud tokens in Pi's shell settings or commit them.
+For an unauthenticated local Pyroscope backend, set `url` to its address
+(e.g. `http://127.0.0.1:4040`) and omit `basic_auth` entirely.
+
+On macOS with Homebrew, `brew install alloy` installs Alloy; its configuration
+is normally `$(brew --prefix)/etc/alloy/config.alloy`. Merge the snippet into
+that file, validate it, then start or restart the service:
+
+```sh
+alloy validate "$(brew --prefix)/etc/alloy/config.alloy"
+brew services start alloy       # first start
+# brew services restart alloy   # if already running; restarts other pipelines too
+```
+
+For Fleet Management / remote configuration, update the managed pipeline
+instead of editing Alloy's local cached copy. Apply the appropriate reload or
+service restart for your deployment. A healthy component does not by itself
+prove forwarding works.
+
+Bind the receiver to loopback for a host-local setup. Port `9999` is a dedicated
+profile receiver, not Alloy's usual UI (`12345`) or an OTLP receiver. If Alloy
+runs in Docker, publish the receiver as `127.0.0.1:9999:9999` and bind it to
+`0.0.0.0` **inside the container**, rather than the container's loopback.
+
+### 2. Configure Pi's shell environment
+
+Put these non-secret exports in **`~/.zshrc` or `~/.bashrc`**, matching your shell:
+
+```sh
+export PI_PERF_PROFILES=1
+export PYROSCOPE_SERVER_ADDRESS=http://127.0.0.1:9999
+# Optional: safe upload diagnostics from startup
+# export PI_PERF_DEBUG=1
+# Optional: expose local process metrics for Alloy to scrape
+# export PI_PERF_METRICS_PORT=9078
+```
+
+Do not omit `export`: plain shell assignments are not inherited by Pi. If you
+previously configured direct Cloud authentication for Pi, unset
+`PYROSCOPE_BASIC_AUTH_USER` and `PYROSCOPE_BASIC_AUTH_PASSWORD` for this
+unauthenticated local receiver. Alloy handles Cloud authentication instead.
+
+In the shell you launch Pi from, source the file you edited, then launch Pi:
+
+```sh
+source ~/.zshrc        # zsh; for bash use: source ~/.bashrc
+printenv PI_PERF_PROFILES PYROSCOPE_SERVER_ADDRESS
+pi --continue
+```
+
+Some bash login shells read `~/.bash_profile` instead of `~/.bashrc`; ensure your
+login setup sources `.bashrc`, or put the exports in the startup file it uses.
+Exit any existing Pi before relaunching: `/reload` cannot import new variables
+from the parent shell. No extension step invokes 1Password or reads Pi's auth
+file for profile credentials.
+
+### 3. Verify the complete pipeline
+
+Run `/perf config`, `/perf check`, and `/perf debug on`. Wait one upload interval
+(60 seconds by default), then inspect `/perf status`. A successful connection
+only verifies reachability; a successful upload means Alloy accepted the
+profile. In Grafana Profiles, look for `service_name="pi"` and filter by the
+`pi_instance` shown in status. Check Alloy's sent/dropped/retry metrics if
+profiles do not arrive. The extension's five-second upload deadline also bounds
+Alloy's synchronous forwarding/retries; raising timeouts cannot fix an empty URL
+or missing credentials.
+
+References: [Alloy profile receiver](https://grafana.com/docs/alloy/latest/reference/components/pyroscope/pyroscope.receive_http/)
+and [profile writer](https://grafana.com/docs/alloy/latest/reference/components/pyroscope/pyroscope.write/).
+
+### Optional process metrics through Alloy
 
 Set `PI_PERF_METRICS_PORT=9078` to expose `http://127.0.0.1:9078/metrics`.
 This is disabled by default. Set `0` for an automatically selected free port;
