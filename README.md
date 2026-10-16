@@ -6,18 +6,32 @@ heap profiling to Grafana Pyroscope. Designed for lag that grows over hours.
 ## Install
 
 ```sh
-git clone https://github.com/slim-bean/pi-perf.git
-cd pi-perf
-npm ci --ignore-scripts
-npm rebuild @datadog/pprof
-pi install .
+pi install git:github.com/slim-bean/pi-perf
 ```
 
-This registers your local checkout in Pi's personal settings. Run `/reload`
-in an already-running session. Requires Node 22.19+.
-Full smoke tests run against Pi 1.3.0; local collection is also verified in
-Pi 1.2.0. Native profiling was tested on macOS ARM64 with Node 26.3. Other
-platforms may need a compiler if the dependency has no matching prebuilt binary.
+To pin the initial release, use `git:github.com/slim-bean/pi-perf@v0.1.0`.
+Run `/reload` in an already-running session. Pi clones the package, installs its
+runtime dependencies, and registers it in your personal settings. Use only one
+installation source: remove a previous local-checkout package entry if switching
+to the Git install, rather than loading both copies.
+
+Requires Node 22.19+. Full smoke tests run against Pi 1.3.0; local collection is
+also verified in Pi 1.2.0. A clean Git install and native profiler loading were
+verified on macOS ARM64 with Node 26.3, without any rebuild or install scripts.
+
+### Why the native dependency?
+
+The extension uses Grafana's [`@pyroscope/nodejs`](https://github.com/grafana/pyroscope-nodejs)
+SDK, which depends on the open-source `@datadog/pprof` sampling engine. This is
+not a Datadog agent or backend integration; profiles go only to your configured
+Pyroscope/Alloy endpoint. The pinned dependency ships prebuilt native binaries
+and its npm install script is a no-op. **No `npm rebuild` is needed.** Continuous
+profiling requires a matching binary for your Node ABI/platform; rebuilding via
+that no-op install script will not fix an unsupported combination. Local process
+diagnostics do not load the native profiler.
+
+For development only, clone the repository, run `npm ci --ignore-scripts`, and
+register the checkout with `pi install .`.
 
 **Default: local diagnostics only.** Loading the package starts a 10-second
 sampler. It does not load the native profiler, upload anything, open a listener,
