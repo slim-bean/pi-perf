@@ -9,7 +9,7 @@ heap profiling to Grafana Pyroscope. Designed for lag that grows over hours.
 pi install git:github.com/slim-bean/pi-perf
 ```
 
-To pin the initial release, use `git:github.com/slim-bean/pi-perf@v0.1.0`.
+To pin this release, use `git:github.com/slim-bean/pi-perf@v0.2.0`.
 Run `/reload` in an already-running session. Pi clones the package, installs its
 runtime dependencies, and registers it in your personal settings. Use only one
 installation source: remove a previous local-checkout package entry if switching

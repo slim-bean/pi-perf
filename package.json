@@ -1,6 +1,6 @@
 {
   "name": "pi-perf",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Low-noise Pi process diagnostics and opt-in continuous profiling with Grafana Pyroscope.",
   "type": "module",
   "license": "MIT",
