@@ -15,9 +15,10 @@ runtime dependencies, and registers it in your personal settings. Use only one
 installation source: remove a previous local-checkout package entry if switching
 to the Git install, rather than loading both copies.
 
-Requires Node 22.19+. Full smoke tests run against Pi 1.3.0; local collection is
-also verified in Pi 1.2.0. A clean Git install and native profiler loading were
-verified on macOS ARM64 with Node 26.3, without any rebuild or install scripts.
+Requires Node 22.19+. Full smoke tests, including native profiling, run against
+Pi 1.5.0 and SDK 0.7.0 on Linux with Node 22.22.3. Local collection was also
+verified in Pi 1.2.0. The earlier SDK 0.6.5 was verified on macOS ARM64 with
+Node 26.3; SDK 0.7.0 has not yet been retested on macOS.
 
 ### Why the native dependency?
 
@@ -96,7 +97,7 @@ a CLI-only `--tui-mode` override can differ. Use
 Restart collection after changing settings. Without other extensions:
 `pi --no-extensions -e ~/projects/pi-extensions/pi-perf/src/index.ts`.
 
-SDK 0.6.5 has no upload timeout option. A private, authenticated loopback relay
+SDK 0.7.0 has no upload timeout option. A private, authenticated loopback relay
 bounds uploads to two streaming requests, 32 MiB each, with a 5-second deadline.
 There are no retries or queued profiles. Upload failures are counted, and local
 diagnostics continue. Shutdown may take roughly 10 seconds if a current and a
