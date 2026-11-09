@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 import { gunzipSync } from "node:zlib";
+import { readFileSync } from "node:fs";
 import { Profile } from "pprof-format";
 import { readConfig } from "../src/config.ts";
 import { UploadRelay } from "../src/relay.ts";
@@ -48,13 +49,21 @@ test("native SDK emits gzipped pprof, forwards auth, guards ownership, and resta
     await p.stop();
     assert.ok(received.length >= 2, "expected wall/CPU and heap profiles");
     const sampleTypes = new Set<string>();
+    const lockedSdkVersion = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"))
+      .packages["node_modules/@pyroscope/nodejs"].version as string;
     for (const r of received) {
       assert.equal(r.auth, "Basic " + Buffer.from("stack:test-token").toString("base64"));
       assert.equal(r.tenant, "test-tenant");
       const url = new URL(r.url, address);
       assert.equal(url.pathname, "/ingest");
       assert.equal(url.searchParams.get("format"), "pprof");
-      assert.match(url.searchParams.get("name")!, /instance=native-test/);
+      const profileName = url.searchParams.get("name")!;
+      assert.match(profileName, /instance=native-test/);
+      // Verify the native upload path uses the SDK selected by the lockfile,
+      // including its generated version metadata, rather than a stale host copy.
+      assert.ok(profileName.includes(`otel.scope.version=${lockedSdkVersion}`));
+      assert.ok(profileName.includes("otel.scope.name=com.grafana.pyroscope/nodejs"));
+      assert.ok(profileName.includes(`process.runtime.version=${process.versions.node}`));
       const decoded = Profile.decode(gunzipSync(r.bytes));
       for (const type of decoded.sampleType) sampleTypes.add(decoded.stringTable.strings[Number(type.type)]!);
     }

@@ -1,6 +1,6 @@
 {
   "name": "pi-perf",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Low-noise Pi process diagnostics and opt-in continuous profiling with Grafana Pyroscope.",
   "type": "module",
   "license": "MIT",
@@ -42,7 +42,7 @@
     }
   },
   "dependencies": {
-    "@pyroscope/nodejs": "^0.7.0"
+    "@pyroscope/nodejs": "^0.7.1"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^1.5.0",
@@ -52,6 +52,6 @@
     "typescript": "^7.0.0"
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22.23.4"
   }
 }
