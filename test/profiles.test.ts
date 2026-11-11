@@ -65,6 +65,12 @@ test("native SDK emits gzipped pprof, forwards auth, guards ownership, and resta
       assert.ok(profileName.includes("otel.scope.name=com.grafana.pyroscope/nodejs"));
       assert.ok(profileName.includes(`process.runtime.version=${process.versions.node}`));
       const decoded = Profile.decode(gunzipSync(r.bytes));
+      // Exercise the formatter against actual SDK bytes, including its async
+      // serializer: sample values and string indices must survive a round trip.
+      const roundTrip = Profile.decode(await decoded.encodeAsync());
+      assert.deepEqual(roundTrip.sample.map((sample) => sample.value), decoded.sample.map((sample) => sample.value));
+      assert.deepEqual(roundTrip.stringTable.strings, decoded.stringTable.strings);
+      for (const sample of decoded.sample) assert.equal(sample.value.length, decoded.sampleType.length);
       for (const type of decoded.sampleType) sampleTypes.add(decoded.stringTable.strings[Number(type.type)]!);
     }
     assert.ok(sampleTypes.has("cpu"), "must include CPU-time samples");
