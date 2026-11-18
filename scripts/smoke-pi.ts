@@ -35,7 +35,9 @@ if (profileMode) {
   assert.ok(address && typeof address !== "string");
   profileAddress = "http://127.0.0.1:" + address.port;
 }
-const cli = join(dirname(fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"))), "bundle", "cli.js");
+const piDist = dirname(fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent")));
+const piVersion = JSON.parse(await readFile(join(piDist, "..", "package.json"), "utf8")).version;
+const cli = join(piDist, "bundle", "cli.js");
 const helper = join(agent, "smoke.ts");
 await writeFile(join(agent, "auth.json"), "{}\n", { mode: 0o600 });
 await writeFile(join(agent, "settings.json"), "{}\n");
@@ -164,6 +166,10 @@ try {
   lines = await records();
   assert.ok(lines.filter((r) => r.kind === "start").length >= 4);
   assert.equal(lines.filter((r) => r.kind === "start").length, lines.filter((r) => r.kind === "stop").length);
+  const starts = lines.filter((r) => r.kind === "start");
+  assert.equal(new Set(starts.map((r) => r.instance)).size, starts.length,
+    "reload/session replacement must not reuse a runtime identity and collide metric counters");
+  assert.ok(starts.every((r) => r.pi_version === piVersion), "every restarted runtime must label the actual loaded Pi version");
   assert.equal(await readFile(join(agent, "auth.json"), "utf8"), "{}\n");
   if (profileMode) {
     assert.ok(lines.some((r) => r.kind === "profile_upload" && r.result === "ok"));

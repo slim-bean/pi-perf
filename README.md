@@ -9,14 +9,14 @@ heap profiling to Grafana Pyroscope. Designed for lag that grows over hours.
 pi install git:github.com/slim-bean/pi-perf
 ```
 
-To pin this release, use `git:github.com/slim-bean/pi-perf@v0.2.2`.
+To pin this release, use `git:github.com/slim-bean/pi-perf@v0.2.3`.
 Run `/reload` in an already-running session. Pi clones the package, installs its
 runtime dependencies, and registers it in your personal settings. Use only one
 installation source: remove a previous local-checkout package entry if switching
 to the Git install, rather than loading both copies.
 
 Requires Node 22.23.4+ (the profiling SDK's declared minimum). Full smoke tests,
-including native profiling and SDK-version labels, passed against Pi 1.5.0 and
+including native profiling and SDK-version labels, passed against Pi 1.5.2 and
 SDK 0.7.1 on Linux with Node 22.22.3. That test runtime is below the SDK's
 supported minimum; these results do not establish supported-runtime coverage.
 Local collection was also verified in Pi 1.2.0. The earlier SDK 0.6.5 was verified
