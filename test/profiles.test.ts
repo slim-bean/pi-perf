@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 import { gunzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
-import { Profile } from "pprof-format";
+import { Profile, StringTable } from "pprof-format";
 import { readConfig } from "../src/config.ts";
 import { UploadRelay } from "../src/relay.ts";
 import { Profiles } from "../src/profiles.ts";
@@ -85,6 +85,39 @@ test("native SDK emits gzipped pprof, forwards auth, guards ownership, and resta
     assert.equal(restarted.active, true);
     await restarted.stop();
   } finally { await p.stop(); await close(backend); }
+});
+
+test("pprof preserves packed sample boundaries and Unicode labels in sync and async encodings", async () => {
+  // Heap byte counts and long-running CPU counters cross varint boundaries.
+  // Mix empty and nonempty packed fields to exercise the shared length cursor.
+  const values = [0, 127, 128, 16383, 16384, 2 ** 28 - 1, 2 ** 28,
+    2 ** 32 - 1, 2 ** 32, Number.MAX_SAFE_INTEGER, 2n ** 63n - 1n];
+  const strings = new StringTable();
+  const labels = ["cpu", "nanoseconds", "worker/λ/🧠", "x".repeat(128), "lone-\ud800"];
+  const indices = labels.map((label) => strings.dedup(label));
+  const profile = new Profile({
+    stringTable: strings,
+    sampleType: values.map(() => ({ type: indices[0], unit: indices[1] })),
+    sample: [
+      { locationId: [], value: [] },
+      { locationId: [1, 2 ** 32], value: values,
+        label: [{ key: indices[2], str: indices[3] }] },
+      { locationId: [2], value: values.slice().reverse() },
+    ],
+    comment: [indices[4]!],
+  });
+  const sync = profile.encode();
+  assert.deepEqual(await profile.encodeAsync(), sync);
+  for (const bytes of [sync, await profile.encodeAsync()]) {
+    const decoded = Profile.decode(bytes);
+    assert.deepEqual(decoded.sample.map((sample) => sample.value.map(BigInt)),
+      [[], values.map(BigInt), values.slice().reverse().map(BigInt)]);
+    assert.deepEqual(decoded.sample[1]!.locationId.map(BigInt), [1n, 2n ** 32n]);
+    assert.deepEqual(decoded.stringTable.strings, ["", ...labels.map((label) =>
+      Buffer.from(label).toString("utf8"))]);
+    assert.equal(decoded.stringTable.strings[Number(decoded.sample[1]!.label[0]!.str)], labels[3]);
+    assert.deepEqual(await decoded.encodeAsync(), sync);
+  }
 });
 
 test("relay reports HTTP failures without leaking headers, response bodies, payload, or URL paths", async () => {
